@@ -1,6 +1,7 @@
-
 def greet(name="you"):
-    return f"Namaste, {name} ji "
+    """Return a friendly greeting"""
+    return f"hello, {name}"
 
-
-# Added this commnent to detect change
+def farewell(name="you"):
+    """Say goodbye to the user"""
+    return f"goodbye, {name}"
