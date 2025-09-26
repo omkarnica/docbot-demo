@@ -3,6 +3,7 @@ name: Auto Update README
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
 
 jobs:
   update-readme:
@@ -17,8 +18,16 @@ jobs:
       - name: Get diff
         id: diff
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
-          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changes.diff
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run: compare last 2 commits on main
+            git fetch origin main --depth=2
+            git diff HEAD~1 HEAD > changes.diff
+          else
+            # PR run
+            git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
+            git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changes.diff
+          fi
+
           echo "diff<<EOF" >> $GITHUB_OUTPUT
           cat changes.diff >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -32,7 +41,7 @@ jobs:
               \"model\": \"llama-3.1-8b-instant\",
               \"messages\": [
                 {\"role\": \"system\", \"content\": \"You are an assistant that updates README.md based on code diffs.\"},
-                {\"role\": \"user\", \"content\": \"Here is the code diff: \n\n${{ steps.diff.outputs.diff }}\n\nWrite an updated README.md section.\"}
+                {\"role\": \"user\", \"content\": \"Here is the code diff: \n\n$(cat changes.diff)\n\nWrite an updated README.md section.\"}
               ]
             }")
 
@@ -45,4 +54,3 @@ jobs:
           git add README.md
           git commit -m "Auto-update README based on code changes" || echo "No changes to commit"
           git push
-
