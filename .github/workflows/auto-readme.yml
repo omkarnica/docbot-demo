@@ -1,0 +1,48 @@
+name: Auto Update README
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
+          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changes.diff
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          cat changes.diff >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate README update with Groq
+        run: |
+          response=$(curl -s https://api.groq.com/openai/v1/chat/completions \
+            -H "Authorization: Bearer ${{ secrets.GROQ_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"llama-3.1-8b-instant\",
+              \"messages\": [
+                {\"role\": \"system\", \"content\": \"You are an assistant that updates README.md based on code diffs.\"},
+                {\"role\": \"user\", \"content\": \"Here is the code diff: \n\n${{ steps.diff.outputs.diff }}\n\nWrite an updated README.md section.\"}
+              ]
+            }")
+
+          echo "$response" | jq -r '.choices[0].message.content' > README.md
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Auto-update README based on code changes" || echo "No changes to commit"
+          git push
+
