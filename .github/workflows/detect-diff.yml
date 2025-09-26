@@ -1,29 +1,35 @@
-name: Detect PR Diff
+name: Detect Diff
+
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
 
 jobs:
-  list-diff:
+  check-readme:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code (full history)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Show PR SHAs (debug)
+      - name: Get list of changed files
+        id: changed_files
         run: |
-          echo "PR base ref: ${{ github.event.pull_request.base.ref }}"
-          echo "PR base sha: ${{ github.event.pull_request.base.sha }}"
-          echo "PR head sha: ${{ github.event.pull_request.head.sha }}"
+          files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          echo "Changed files:"
+          echo "$files"
+          echo "files=$files" >> $GITHUB_OUTPUT
 
-      - name: List changed files (base → head)
+      - name: Check if README update is needed
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
-          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | tee changed-files.txt
+          files="${{ steps.changed_files.outputs.files }}"
+          
+          echo "Analyzing changed files..."
+          echo "$files"
 
-      - name: Print full unified diff (optional)
-        run: |
-          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | sed -n '1,200p' || true
-
+          if echo "$files" | grep -qv "README.md"; then
+            echo "⚠️ None of the changed files is README.md."
+            echo "Bot decision: Check if README should be updated."
+          else
+            echo "✅ README.md is already part of the changes."
+          fi
