@@ -1,0 +1,29 @@
+name: Detect PR Diff
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  list-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show PR SHAs (debug)
+        run: |
+          echo "PR base ref: ${{ github.event.pull_request.base.ref }}"
+          echo "PR base sha: ${{ github.event.pull_request.base.sha }}"
+          echo "PR head sha: ${{ github.event.pull_request.head.sha }}"
+
+      - name: List changed files (base → head)
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
+          git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | tee changed-files.txt
+
+      - name: Print full unified diff (optional)
+        run: |
+          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | sed -n '1,200p' || true
+
